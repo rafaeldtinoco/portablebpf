@@ -36,8 +36,8 @@ static __always_inline void update_hist(struct task_struct *task, u32 tgid, u32 
 
 	histp = bpf_map_lookup_elem(&hists, &tgid);
 
-	if (!histp)
-	{
+	if (!histp) {
+
 		bpf_map_update_elem(&hists, &tgid, &initial_hist, 0);
 
 		histp = bpf_map_lookup_elem(&hists, &tgid);
