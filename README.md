@@ -11,6 +11,8 @@ so the binary can be portable and executed in different kernels.
 
 #### You can clone this and create your own portable eBPF application using this as a base point, instead of relying on BPFCC and having your eBPF bytecode compiled runtime each time you run the app.
 
+Check [IPsetAudit](https://github.com/rafaeldtinoco/ipsetaudit) tool for an example of this being used.
+
 ## Output Example
 
 ```
