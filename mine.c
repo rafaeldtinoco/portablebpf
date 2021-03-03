@@ -20,12 +20,14 @@
 #include "mine.h"
 #include "mine.skel.h"
 
-// amd64 syscall
 #define __NR_perf_event_open 298
+
+#define PERF_BUFFER_PAGES	16
+#define PERF_POLL_TIMEOUT_MS	100
 
 static volatile bool exiting;
 
-// LEGACY KPROBE ATTACH (LEGACY)
+// LEGACY KPROBE ATTACH (COULD BE PART OF LIBBPF BUT IT IS NOT)
 // (thanks to Andrii Nakryiko idea explaining libbpf did not support legacy probe)
 
 int
@@ -130,13 +132,7 @@ attach_kprobe_legacy(struct bpf_program* prog, const char* func_name, bool is_kr
 	return NULL;
 }
 
-// REGULAR LIBBPF APP
-
-static int print_hists(int fd)
-{
-
-	return 0;
-}
+// GENERAL FUNCTIONS
 
 static int get_pid_max(void)
 {
@@ -169,15 +165,38 @@ int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list a
 	return vfprintf(stderr, format, args);
 }
 
-static void sig_handler(int sig)
+// HANDLE PERF EVENTS
+
+void handle_event(void *ctx, int cpu, void *data, __u32 data_sz)
 {
-	exiting = true;
+	const struct event *e = data;
+	struct tm *tm;
+	char ts[32];
+	time_t t;
+
+	time(&t);
+	tm = localtime(&t);
+	strftime(ts, sizeof(ts), "%H:%M:%S", tm);
+
+	printf("%-8s command: %-16s (pid = %-6d)", ts, e->task, e->pid);
+	printf("\n");
+
+	return;
 }
+
+void handle_lost_events(void *ctx, int cpu, __u64 lost_cnt)
+{
+	fprintf(stderr, "lost %llu events on CPU #%d\n", lost_cnt, cpu);
+}
+
+// MAIN
 
 int main(int argc, char **argv)
 {
 	struct mine_bpf *obj;
-	int err, pid_max, fd;
+	int err, pid_max;
+	struct perf_buffer_opts pb_opts;
+	struct perf_buffer *pb = NULL;
 
 	libbpf_set_print(libbpf_print_fn);
 
@@ -190,42 +209,41 @@ int main(int argc, char **argv)
 	if ((pid_max = get_pid_max()) < 0)
 		EXITERR("failed to get pid_max\n");
 
-	bpf_map__resize(obj->maps.hists, pid_max);
-
 	if ((err = mine_bpf__load(obj)))
 		CLEANERR("failed to load BPF object: %d\n", err);
-
-	/*
-	if ((err = mine_bpf__attach(obj)))
-		CLEANERR("failed to attach BPF programs\n");
-	 */
 
 	obj->links.tcp_connect = attach_kprobe_legacy(obj->progs.tcp_connect, "tcp_connect", false);
 
 	if (!obj->links.tcp_connect) {
-		WARN("could not attach kprobe using legacy debugfs API");
+		WARN("kprobe attach using legacy debugfs API failed, trying perf attach...");
+
 		if ((err = mine_bpf__attach(obj)))
 			CLEANERR("failed to attach BPF programs\n");
 	}
 
-	fd = bpf_map__fd(obj->maps.hists);
+	pb_opts.sample_cb = handle_event;
+	pb_opts.lost_cb = handle_lost_events;
+	pb = perf_buffer__new(bpf_map__fd(obj->maps.events), PERF_BUFFER_PAGES, &pb_opts);
 
-	signal(SIGINT, sig_handler);
-
-	printf("Tracing syscall \"sync\"... Hit Ctrl-C to end.\n");
-
-	while (1) {
-
-		if ((err = print_hists(fd)))
-			break;
-
-		if (exiting)
-			break;
-
-		sleep(5);
+	err = libbpf_get_error(pb);
+	if (err) {
+		pb = NULL;
+		fprintf(stderr, "failed to open perf buffer: %d\n", err);
+		goto cleanup;
 	}
 
+	printf("Tracing... Hit Ctrl-C to end.\n");
+
+	while (1) {
+		if ((err = perf_buffer__poll(pb, PERF_POLL_TIMEOUT_MS)) < 0)
+			break;
+	}
+
+	printf("error polling perf buffer: %d\n", err);
+
 cleanup:
+	perf_buffer__free(pb);
 	mine_bpf__destroy(obj);
+
 	return err != 0;
 }

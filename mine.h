@@ -37,8 +37,9 @@
 
 #define TASK_COMM_LEN	16
 
-struct hist {
-	char comm[TASK_COMM_LEN];
+struct event {
+	char task[TASK_COMM_LEN];
+	pid_t pid;
 };
 
 #endif /* MINE_H_ */
