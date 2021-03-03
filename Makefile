@@ -1,7 +1,7 @@
 OUTPUT := .output
 CLANG ?= clang
 LLVM_STRIP ?= llvm-strip
-BPFTOOL ?= /usr/sbin/bpftool
+BPFTOOL ?= ./tools/bpftool
 LIBBPF_SRC := $(abspath ./libbpf/src)
 LIBBPF_OBJ := $(abspath $(OUTPUT)/libbpf.a)
 INCLUDES := -I$(OUTPUT) -I.

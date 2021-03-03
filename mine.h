@@ -5,6 +5,12 @@
 
 #define HERE fprintf(stderr, "line %d, file %s, function %s\n", __LINE__, __FILE__, __func__)
 
+#define WARN(...)			\
+{					\
+	fprintf(stderr, __VA_ARGS__);	\
+	fprintf(stderr, "\n");		\
+}
+
 #define EXITERR(...)			\
 {					\
 	fprintf(stderr, __VA_ARGS__);	\
@@ -31,8 +37,9 @@
 
 #define TASK_COMM_LEN	16
 
-struct hist {
-	char comm[TASK_COMM_LEN];
+struct event {
+	char task[TASK_COMM_LEN];
+	pid_t pid;
 };
 
 #endif /* MINE_H_ */
