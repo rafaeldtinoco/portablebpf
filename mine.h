@@ -5,6 +5,12 @@
 
 #define HERE fprintf(stderr, "line %d, file %s, function %s\n", __LINE__, __FILE__, __func__)
 
+#define WARN(...)			\
+{					\
+	fprintf(stderr, __VA_ARGS__);	\
+	fprintf(stderr, "\n");		\
+}
+
 #define EXITERR(...)			\
 {					\
 	fprintf(stderr, __VA_ARGS__);	\
