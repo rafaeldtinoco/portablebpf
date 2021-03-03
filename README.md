@@ -34,7 +34,9 @@ Check [IPsetAudit](https://github.com/rafaeldtinoco/ipsetaudit) tool for an exam
    (or some other compatible to old kernels data store). You can't simply
    bpf\_map\_update\_elem() pointing to DATA section as it does not exist for the running bytecode.
 
-4. For older OSes, make sure to use **at least** clang-10 to compile this (Like in Ubuntu Bionic).
+4. For older OSes, make sure to use **at least** clang-10 to compile this (Like
+   in Ubuntu Bionic). Make sure to link **vmlinux.h** to
+   **include/X.Y.Z-vmlinux.h** OR to re-generate vmlinux.h with **bpftool**.
 
 ## Output Example
 
