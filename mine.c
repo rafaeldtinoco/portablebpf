@@ -4,8 +4,16 @@
 #include <time.h>
 #include <signal.h>
 #include <unistd.h>
-#include <errno.h>
+#include <time.h>
+#include <pwd.h>
 #include <fcntl.h>
+#include <syslog.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <sys/time.h>
+#include <sys/resource.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include <sys/types.h>
 #include <sys/time.h>
@@ -20,15 +28,17 @@
 #include "mine.h"
 #include "mine.skel.h"
 
+int daemonize = 0;
+static int bpfverbose = 0;
+static volatile bool exiting;
+
 #define __NR_perf_event_open 298
 
 #define PERF_BUFFER_PAGES	16
 #define PERF_POLL_TIMEOUT_MS	100
 
-static volatile bool exiting;
-
 // LEGACY KPROBE ATTACH (COULD BE PART OF LIBBPF BUT IT IS NOT)
-// (thanks to Andrii Nakryiko idea explaining libbpf did not support legacy probe)
+// (thanks to Andrii Nakryiko's idea)
 
 int
 poke_kprobe_events(bool add, const char* name, bool ret)
@@ -132,7 +142,24 @@ attach_kprobe_legacy(struct bpf_program* prog, const char* func_name, bool is_kr
 	return NULL;
 }
 
-// GENERAL FUNCTIONS
+// GENERAL
+
+char *get_currtime(void)
+{
+	char *datetime = malloc(100);
+	time_t t = time(NULL);
+	struct tm *tmp;
+
+	memset(datetime, 0, 100);
+
+	if ((tmp = localtime(&t)) == NULL)
+		EXITERR("could not get localtime");
+
+	if ((strftime(datetime, 100, "%Y/%m/%d_%H:%M", tmp)) == 0)
+		EXITERR("could not parse localtime");
+
+	return datetime;
+}
 
 static int get_pid_max(void)
 {
@@ -160,26 +187,136 @@ int bump_memlock_rlimit(void)
 	return setrlimit(RLIMIT_MEMLOCK, &rlim_new);
 }
 
+char *get_username(uint32_t uid)
+{
+	char *username = malloc(100);
+	struct passwd *p = getpwuid(uid);
+
+	memset(username, 0, 100);
+	strcpy(username, p->pw_name);
+
+	return username;
+}
+
+// LOGGING RELATED
+
+void initlog()
+{
+	openlog(NULL, LOG_CONS | LOG_NDELAY | LOG_PID, LOG_USER);
+}
+
+void endlog()
+{
+	closelog();
+}
+
+// DAEMON RELATED
+
+int makemeadaemon(void)
+{
+	int fd;
+
+	fprintf(stdout, "Daemon mode. Check syslog for messages!\n");
+
+	switch(fork()) {
+	case -1:	return -1;
+	case 0:		break;
+	default:	exit(0);
+	}
+
+	if (setsid() == -1)
+		return -1;
+
+	switch(fork()) {
+	case -1:	return -1;
+	case 0:		break;
+	default:	exit(0);
+	}
+
+	umask(S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+
+	if (chdir("/") == -1)
+		return -1;
+
+	close(0); close(1); close(2);
+
+	fd = open("/dev/null", O_RDWR);
+
+	if (fd != 0)
+		return -1;
+	if (dup2(0, 1) != 1)
+		return -1;
+	if (dup2(0, 2) != 2)
+		return -1;
+
+	return 0;
+}
+
+int dontmakemeadaemon(void)
+{
+	fprintf(stdout, "Foreground mode...<Ctrl-C> or or SIG_TERM to end it.\n");
+
+	umask(S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+
+	return 0;
+}
+
+// OUTPUT
+
+static int output(struct event *e)
+{
+	char *currtime, *username;
+
+	currtime = get_currtime();
+
+	if ((username = get_username(e->uid)) == NULL)
+		username = "null";
+
+	OUTPUT("(%s) %s (pid: %d)\n", currtime, e->comm, e->pid);
+
+	if (username != NULL)
+		free(username);
+
+	free(currtime);
+
+	return 0;
+}
+
 int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
+	if (level == LIBBPF_DEBUG && !bpfverbose)
+		return 0;
+
 	return vfprintf(stderr, format, args);
 }
 
-// HANDLE PERF EVENTS
+// USAGE
+
+int usage(int argc, char **argv)
+{
+	fprintf(stdout,
+		"\n"
+		"Syntax: %s [options]\n"
+		"\n"
+		"\t[options]:\n"
+		"\n"
+		"\t-v: bpf verbose mode\n"
+		"\t-d: daemon mode (output to syslog)\n"
+		"\n"
+		"Check https://rafaeldtinoco.github.io/portablebpf/ for more info!\n"
+		"\n",
+		argv[0]);
+
+	exit(0);
+}
+
+// PERF EVENTS
 
 void handle_event(void *ctx, int cpu, void *data, __u32 data_sz)
 {
-	const struct event *e = data;
-	struct tm *tm;
-	char ts[32];
-	time_t t;
+	struct event *e = data;
 
-	time(&t);
-	tm = localtime(&t);
-	strftime(ts, sizeof(ts), "%H:%M:%S", tm);
-
-	printf("%-8s command: %-16s (pid = %-6d)", ts, e->task, e->pid);
-	printf("\n");
+	output(e);
 
 	return;
 }
@@ -189,25 +326,47 @@ void handle_lost_events(void *ctx, int cpu, __u64 lost_cnt)
 	fprintf(stderr, "lost %llu events on CPU #%d\n", lost_cnt, cpu);
 }
 
-// MAIN
+// EBPF USERLAND PORTION
 
 int main(int argc, char **argv)
 {
+	int opt, err = 0, pid_max;
 	struct mine_bpf *obj;
-	int err, pid_max;
 	struct perf_buffer_opts pb_opts;
 	struct perf_buffer *pb = NULL;
+
+	while ((opt = getopt(argc, argv, "hvd")) != -1) {
+		switch(opt) {
+		case 'v':
+			bpfverbose = 1;
+			break;
+		case 'd':
+			daemonize = 1;
+			break;
+		case 'h':
+		default:
+			usage(argc, argv);
+		}
+	}
+
+	daemonize ? err = makemeadaemon() : dontmakemeadaemon();
+
+	if (err == -1)
+		EXITERR("failed to become a deamon");
+
+	if (daemonize)
+		initlog();
 
 	libbpf_set_print(libbpf_print_fn);
 
 	if ((err = bump_memlock_rlimit()))
-		EXITERR("failed to increase rlimit: %d\n", err);
+		EXITERR("failed to increase rlimit: %d", err);
 
 	if (!(obj = mine_bpf__open()))
-		EXITERR("failed to open BPF object\n");
+		EXITERR("failed to open BPF object");
 
 	if ((pid_max = get_pid_max()) < 0)
-		EXITERR("failed to get pid_max\n");
+		EXITERR("failed to get pid_max");
 
 	if ((err = mine_bpf__load(obj)))
 		CLEANERR("failed to load BPF object: %d\n", err);
@@ -215,7 +374,7 @@ int main(int argc, char **argv)
 	obj->links.tcp_connect = attach_kprobe_legacy(obj->progs.tcp_connect, "tcp_connect", false);
 
 	if (!obj->links.tcp_connect) {
-		WARN("kprobe attach using legacy debugfs API failed, trying perf attach...");
+		WARN("kprobe attach using legacy debugfs API failed, trying perf attach");
 
 		if ((err = mine_bpf__attach(obj)))
 			CLEANERR("failed to attach BPF programs\n");
@@ -223,6 +382,7 @@ int main(int argc, char **argv)
 
 	pb_opts.sample_cb = handle_event;
 	pb_opts.lost_cb = handle_lost_events;
+
 	pb = perf_buffer__new(bpf_map__fd(obj->maps.events), PERF_BUFFER_PAGES, &pb_opts);
 
 	err = libbpf_get_error(pb);
@@ -239,9 +399,10 @@ int main(int argc, char **argv)
 			break;
 	}
 
-	printf("error polling perf buffer: %d\n", err);
-
 cleanup:
+	if (daemonize)
+		endlog();
+
 	perf_buffer__free(pb);
 	mine_bpf__destroy(obj);
 

@@ -1,7 +1,20 @@
 #ifndef MINE_H_
 #define MINE_H_
 
+// GENERAL
+
 #define TASK_COMM_LEN 16
+
+extern int daemonize;
+
+struct event {
+	pid_t pid;
+	uint32_t uid;
+	uint32_t gid;
+	char comm[TASK_COMM_LEN];
+};
+
+// OUTPUT
 
 #define HERE fprintf(stderr, "line %d, file %s, function %s\n", __LINE__, __FILE__, __func__)
 
@@ -35,11 +48,16 @@
 	goto cleanup;			\
 }
 
-#define TASK_COMM_LEN	16
+#define OUTPUT(...)						\
+{								\
+	switch (daemonize) {					\
+	case 0:							\
+		fprintf(stdout, __VA_ARGS__);			\
+		break;						\
+	case 1:							\
+		syslog(LOG_USER | LOG_INFO, __VA_ARGS__);	\
+		break;						\
+	}							\
+}
 
-struct event {
-	char task[TASK_COMM_LEN];
-	pid_t pid;
-};
-
-#endif /* MINE_H_ */
+#endif
