@@ -263,16 +263,25 @@ int dontmakemeadaemon(void)
 
 // OUTPUT
 
-static int output(struct event *e)
+static int output(struct data_t *e)
 {
-	char *currtime, *username;
+	char *username, *currtime = get_currtime();
 
-	currtime = get_currtime();
-
-	if ((username = get_username(e->uid)) == NULL)
+	if ((username = get_username(e->loginuid)) == NULL)
 		username = "null";
 
-	OUTPUT("(%s) %s (pid: %d)\n", currtime, e->comm, e->pid);
+	switch (e->etype) {
+	case EXCHANGE_CREATE:
+		OUTPUT("(%s) %s (pid: %d) (username: %s - uid: %d) - CREATE %s (type: %s)\n",
+				currtime, e->comm, e->pid, username,
+				e->loginuid, e->ipset_name,
+				e->ipset_type);
+		break;
+		;;
+	default:
+		break;
+		;;
+	}
 
 	if (username != NULL)
 		free(username);
@@ -314,7 +323,7 @@ int usage(int argc, char **argv)
 
 void handle_event(void *ctx, int cpu, void *data, __u32 data_sz)
 {
-	struct event *e = data;
+	struct data_t *e = data;
 
 	output(e);
 
@@ -371,14 +380,15 @@ int main(int argc, char **argv)
 	if ((err = mine_bpf__load(obj)))
 		CLEANERR("failed to load BPF object: %d\n", err);
 
-	obj->links.tcp_connect = attach_kprobe_legacy(obj->progs.tcp_connect, "tcp_connect", false);
+	obj->links.ip_set_create = attach_kprobe_legacy(obj->progs.ip_set_create, "ip_set_create", false);
 
-	if (!obj->links.tcp_connect) {
+	if (!obj->links.ip_set_create) {
 		WARN("kprobe attach using legacy debugfs API failed, trying perf attach");
 
 		if ((err = mine_bpf__attach(obj)))
 			CLEANERR("failed to attach BPF programs\n");
-	}
+	} else
+		CLEANERR("failed to attach");
 
 	pb_opts.sample_cb = handle_event;
 	pb_opts.lost_cb = handle_lost_events;

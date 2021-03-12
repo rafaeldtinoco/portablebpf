@@ -23,18 +23,18 @@ $(OUTPUT) $(OUTPUT)/libbpf:
 	mkdir -p $@
 
 $(APPS): %: $(OUTPUT)/%.o $(LIBBPF_OBJ) | $(OUTPUT)
-	$(CC) $(CFLAGS) $^ -lelf -lz -o $@
+	$(CC) $(CFLAGS) -DNOTBCC  $^ -lelf -lz -o $@
 
 $(patsubst %,$(OUTPUT)/%.o,$(APPS)): %.o: %.skel.h
 
 $(OUTPUT)/%.o: %.c $(wildcard %.h) | $(OUTPUT)
-	$(CC) $(CFLAGS) $(INCLUDES) -c $(filter %.c,$^) -o $@
+	$(CC) $(CFLAGS) $(INCLUDES) -DNOTBCC -c $(filter %.c,$^) -o $@
 
 $(OUTPUT)/%.skel.h: $(OUTPUT)/%.bpf.o | $(OUTPUT)
 	$(BPFTOOL) gen skeleton $< > $@
 
 $(OUTPUT)/%.bpf.o: %.bpf.c $(LIBBPF_OBJ) $(wildcard %.h) ./vmlinux.h | $(OUTPUT)
-	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(ARCH)		\
+	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(ARCH) -DNOTBCC	\
 		     $(INCLUDES) -c $(filter %.c,$^) -o $@ &&		\
 	$(LLVM_STRIP) -g $@
 
