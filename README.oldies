@@ -1,3 +1,0 @@
-update-alternatives --install /usr/bin/llvm-objcopy llvm-objcopy  $(which llvm-objcopy-10) 1
-update-alternatives --install /usr/bin/clang clang $(which clang-10) 1
-update-alternatives --install /usr/bin/llvm-strip llvm-strip $(which llvm-strip-10) 1
