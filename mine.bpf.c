@@ -115,3 +115,5 @@ int kprobe__ip_set_create(struct pt_regs *ctx, struct net *net, struct sock *ctn
 {
 	return probe_enter(EXCHANGE_CREATE, ctx, nlh, attr);
 }
+
+char LICENSE[] SEC("license") = "GPL";
