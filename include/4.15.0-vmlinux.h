@@ -1,11 +1,9 @@
 #ifndef __VMLINUX_H__
 #define __VMLINUX_H__
 
-/*
 #ifndef BPF_NO_PRESERVE_ACCESS_INDEX
 #pragma clang attribute push (__attribute__((preserve_access_index)), apply_to = record)
 #endif
-*/
 
 typedef unsigned char __u8;
 
@@ -3304,6 +3302,8 @@ struct return_instance {
 	struct return_instance *next;
 };
 
+typedef int vm_fault_t;
+
 struct radix_tree_node;
 
 struct radix_tree_root {
@@ -3445,11 +3445,11 @@ struct vm_operations_struct {
 	void (*close)(struct vm_area_struct *);
 	int (*split)(struct vm_area_struct *, long unsigned int);
 	int (*mremap)(struct vm_area_struct *);
-	int (*fault)(struct vm_fault *);
-	int (*huge_fault)(struct vm_fault *, enum page_entry_size);
+	vm_fault_t (*fault)(struct vm_fault *);
+	vm_fault_t (*huge_fault)(struct vm_fault *, enum page_entry_size);
 	void (*map_pages)(struct vm_fault *, long unsigned int, long unsigned int);
-	int (*page_mkwrite)(struct vm_fault *);
-	int (*pfn_mkwrite)(struct vm_fault *);
+	vm_fault_t (*page_mkwrite)(struct vm_fault *);
+	vm_fault_t (*pfn_mkwrite)(struct vm_fault *);
 	int (*access)(struct vm_area_struct *, long unsigned int, void *, int, int);
 	const char * (*name)(struct vm_area_struct *);
 	int (*set_policy)(struct vm_area_struct *, struct mempolicy *);
@@ -9083,6 +9083,13 @@ enum {
 	EVENT_FILE_FL_WAS_ENABLED_BIT = 10,
 };
 
+struct rnd_state {
+	__u32 s1;
+	__u32 s2;
+	__u32 s3;
+	__u32 s4;
+};
+
 struct acpi_table_header {
 	char signature[4];
 	u32 length;
@@ -9520,6 +9527,8 @@ struct efi {
 	long unsigned int properties_table;
 	long unsigned int mem_attr_table;
 	long unsigned int rng_seed;
+	long unsigned int tpm_log;
+	long unsigned int tpm_final_log;
 	efi_get_time_t *get_time;
 	efi_set_time_t *set_time;
 	efi_get_wakeup_time_t *get_wakeup_time;
@@ -12222,12 +12231,13 @@ enum flow_dissector_key_id {
 	FLOW_DISSECTOR_KEY_MPLS = 18,
 	FLOW_DISSECTOR_KEY_TCP = 19,
 	FLOW_DISSECTOR_KEY_IP = 20,
-	FLOW_DISSECTOR_KEY_MAX = 21,
+	FLOW_DISSECTOR_KEY_ENC_IP = 21,
+	FLOW_DISSECTOR_KEY_MAX = 22,
 };
 
 struct flow_dissector {
 	unsigned int used_keys;
-	short unsigned int offset[21];
+	short unsigned int offset[22];
 };
 
 struct flowi_tunnel {
@@ -14917,6 +14927,7 @@ struct tcf_proto {
 	const struct tcf_proto_ops *ops;
 	struct tcf_chain *chain;
 	struct callback_head rcu;
+	struct net_device *indev;
 };
 
 struct tcf_result {
@@ -19245,7 +19256,7 @@ enum cpuid_regs_idx {
 
 struct perf_addr_filter {
 	struct list_head entry;
-	struct path path;
+	struct inode *inode;
 	long unsigned int offset;
 	long unsigned int size;
 	unsigned int range: 1;
@@ -25085,13 +25096,6 @@ struct trace_event_data_offsets_mpx_range_trace {};
 
 struct trace_event_data_offsets_mpx_new_bounds_table {};
 
-struct rnd_state {
-	__u32 s1;
-	__u32 s2;
-	__u32 s3;
-	__u32 s4;
-};
-
 struct kaslr_memory_region {
 	long unsigned int *base;
 	long unsigned int size_tb;
@@ -25973,7 +25977,7 @@ enum migrate_reason {
 	MR_SYSCALL = 3,
 	MR_MEMPOLICY_MBIND = 4,
 	MR_NUMA_MISPLACED = 5,
-	MR_CMA = 6,
+	MR_CONTIG_RANGE = 6,
 	MR_TYPES = 7,
 };
 
@@ -30195,6 +30199,8 @@ struct process_timer {
 	struct task_struct *task;
 };
 
+typedef __u32 pao_T_____8;
+
 struct system_time_snapshot {
 	u64 cycles;
 	ktime_t real;
@@ -32769,12 +32775,11 @@ struct rb_event_info {
 };
 
 enum {
-	RB_CTX_TRANSITION = 0,
-	RB_CTX_NMI = 1,
-	RB_CTX_IRQ = 2,
-	RB_CTX_SOFTIRQ = 3,
-	RB_CTX_NORMAL = 4,
-	RB_CTX_MAX = 5,
+	RB_CTX_NMI = 0,
+	RB_CTX_IRQ = 1,
+	RB_CTX_SOFTIRQ = 2,
+	RB_CTX_NORMAL = 3,
+	RB_CTX_MAX = 4,
 };
 
 struct ring_buffer_per_cpu {
@@ -36358,11 +36363,11 @@ struct vm_operations_struct___2 {
 	void (*close)(struct vm_area_struct___2 *);
 	int (*split)(struct vm_area_struct___2 *, long unsigned int);
 	int (*mremap)(struct vm_area_struct___2 *);
-	int (*fault)(struct vm_fault___2 *);
-	int (*huge_fault)(struct vm_fault___2 *, enum page_entry_size);
+	vm_fault_t (*fault)(struct vm_fault___2 *);
+	vm_fault_t (*huge_fault)(struct vm_fault___2 *, enum page_entry_size);
 	void (*map_pages)(struct vm_fault___2 *, long unsigned int, long unsigned int);
-	int (*page_mkwrite)(struct vm_fault___2 *);
-	int (*pfn_mkwrite)(struct vm_fault___2 *);
+	vm_fault_t (*page_mkwrite)(struct vm_fault___2 *);
+	vm_fault_t (*pfn_mkwrite)(struct vm_fault___2 *);
 	int (*access)(struct vm_area_struct___2 *, long unsigned int, void *, int, int);
 	const char * (*name)(struct vm_area_struct___2 *);
 	int (*set_policy)(struct vm_area_struct___2 *, struct mempolicy *);
@@ -38308,7 +38313,7 @@ struct perf_cpu_context___2 {
 
 struct perf_addr_filter___2 {
 	struct list_head entry;
-	struct path___2 path;
+	struct inode___2 *inode;
 	long unsigned int offset;
 	long unsigned int size;
 	unsigned int range: 1;
@@ -39438,6 +39443,7 @@ struct tcf_proto___2 {
 	const struct tcf_proto_ops___2 *ops;
 	struct tcf_chain___2 *chain;
 	struct callback_head rcu;
+	struct net_device___2 *indev;
 };
 
 struct tcf_result___2 {
@@ -41466,7 +41472,7 @@ struct buffer_head {
 	atomic_t b_count;
 };
 
-typedef struct page *new_page_t(struct page *, long unsigned int, int **);
+typedef struct page *new_page_t(struct page *, long unsigned int);
 
 typedef void free_page_t(struct page *, long unsigned int);
 
@@ -41517,13 +41523,6 @@ struct trace_event_raw_mm_numa_migrate_ratelimit {
 struct trace_event_data_offsets_mm_migrate_pages {};
 
 struct trace_event_data_offsets_mm_numa_migrate_ratelimit {};
-
-struct page_to_node {
-	long unsigned int addr;
-	struct page *page;
-	int node;
-	int status;
-};
 
 struct migrate_vma {
 	struct vm_area_struct *vma;
@@ -56903,6 +56902,24 @@ struct PartitionBlock {
 	__u32 pb_EReserved[15];
 };
 
+struct partition_info {
+	u8 flg;
+	char id[3];
+	__be32 st;
+	__be32 siz;
+};
+
+struct rootsector {
+	char unused[342];
+	struct partition_info icdpart[8];
+	char unused2[12];
+	u32 hd_siz;
+	struct partition_info part[4];
+	u32 bsl_st;
+	u32 bsl_cnt;
+	u16 checksum;
+} __attribute__((packed));
+
 struct lvm_rec {
 	char lvm_id[4];
 	char reserved4[16];
@@ -59670,13 +59687,6 @@ struct opal_suspend_data {
 	struct list_head node;
 };
 
-struct siprand_state {
-	long unsigned int v0;
-	long unsigned int v1;
-	long unsigned int v2;
-	long unsigned int v3;
-};
-
 typedef __kernel_long_t __kernel_ptrdiff_t;
 
 typedef __kernel_ptrdiff_t ptrdiff_t;
@@ -60619,7 +60629,7 @@ struct ts_linear_state {
 	const void *data;
 };
 
-typedef s32 pao_T_____8;
+typedef s32 pao_T_____9;
 
 enum dma_sync_target {
 	SYNC_FOR_CPU = 0,
@@ -71758,6 +71768,11 @@ struct agp_device_ids {
 	int (*chipset_setup)(struct pci_dev *);
 };
 
+struct tpm2_digest {
+	u16 alg_id;
+	u8 digest[64];
+};
+
 struct tpm_chip;
 
 struct tpm_class_ops {
@@ -72062,11 +72077,6 @@ struct tpm_cmd_t {
 	tpm_cmd_params params;
 } __attribute__((packed));
 
-struct tpm2_digest {
-	u16 alg_id;
-	u8 digest[64];
-};
-
 enum tpm_buf_flags {
 	TPM_BUF_OVERFLOW = 1,
 };
@@ -72263,7 +72273,7 @@ struct tcg_efi_specid_event_algs {
 	u16 digest_size;
 };
 
-struct tcg_efi_specid_event {
+struct tcg_efi_specid_event_head {
 	u8 signature[16];
 	u32 platform_class;
 	u8 spec_version_minor;
@@ -72271,10 +72281,8 @@ struct tcg_efi_specid_event {
 	u8 spec_errata;
 	u8 uintnsize;
 	u32 num_algs;
-	struct tcg_efi_specid_event_algs digest_sizes[3];
-	u8 vendor_info_size;
-	u8 vendor_info[0];
-} __attribute__((packed));
+	struct tcg_efi_specid_event_algs digest_sizes[0];
+};
 
 struct tcg_pcr_event {
 	u32 pcr_idx;
@@ -72289,13 +72297,12 @@ struct tcg_event_field {
 	u8 event[0];
 };
 
-struct tcg_pcr_event2 {
+struct tcg_pcr_event2_head {
 	u32 pcr_idx;
 	u32 event_type;
 	u32 count;
-	struct tpm2_digest digests[3];
-	struct tcg_event_field event;
-} __attribute__((packed));
+	struct tpm2_digest digests[0];
+};
 
 enum tpm2_handle_types {
 	TPM2_HT_HMAC_SESSION = 33554432,
@@ -72341,6 +72348,18 @@ struct acpi_tcpa {
 		struct server_hdr server;
 	};
 } __attribute__((packed));
+
+struct linux_efi_tpm_eventlog {
+	u32 size;
+	u8 version;
+	u8 log[0];
+};
+
+struct efi_tcg2_final_events_table {
+	u64 version;
+	u64 nr_events;
+	u8 events[0];
+};
 
 enum tis_access {
 	TPM_ACCESS_VALID = 128,
@@ -93147,6 +93166,8 @@ struct devlink_ops {
 	int (*eswitch_inline_mode_set)(struct devlink *, u8);
 	int (*eswitch_encap_mode_get)(struct devlink *, u8 *);
 	int (*eswitch_encap_mode_set)(struct devlink *, u8);
+	int (*eswitch_multipath_mode_get)(struct devlink *, u8 *);
+	int (*eswitch_multipath_mode_set)(struct devlink *, u8);
 };
 
 struct devlink_sb_pool_info {
@@ -93758,8 +93779,6 @@ struct netdev_adjacent {
 };
 
 typedef struct sk_buff *pto_T_____25;
-
-typedef __u32 pao_T_____9;
 
 struct ethtool_value {
 	__u32 cmd;
@@ -100513,10 +100532,8 @@ enum reg_type {
 	REG_TYPE_BASE = 2,
 };
 
-/*
 #ifndef BPF_NO_PRESERVE_ACCESS_INDEX
 #pragma clang attribute pop
 #endif
-*/
 
 #endif /* __VMLINUX_H__ */
