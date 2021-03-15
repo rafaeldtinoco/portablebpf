@@ -133,6 +133,7 @@ attach_kprobe_legacy(struct bpf_program* prog, const char* func_name, bool is_kr
 	return link;
 
 	err_out:
+
 	if (f)
 		fclose(f);
 	if (fd >= 0)
@@ -193,7 +194,8 @@ char *get_username(uint32_t uid)
 	struct passwd *p = getpwuid(uid);
 
 	memset(username, 0, 100);
-	strcpy(username, p->pw_name);
+	if (p && p->pw_name)
+		strncpy(username, p->pw_name, 100);
 
 	return username;
 }
@@ -382,13 +384,9 @@ int main(int argc, char **argv)
 
 	obj->links.ip_set_create = attach_kprobe_legacy(obj->progs.ip_set_create, "ip_set_create", false);
 
-	if (!obj->links.ip_set_create) {
-		WARN("kprobe attach using legacy debugfs API failed, trying perf attach");
-
+	if (!obj->links.ip_set_create)
 		if ((err = mine_bpf__attach(obj)))
-			CLEANERR("failed to attach BPF programs\n");
-	} else
-		CLEANERR("failed to attach");
+			CLEANERR("failed to attach\n");
 
 	pb_opts.sample_cb = handle_event;
 	pb_opts.lost_cb = handle_lost_events;
