@@ -235,7 +235,7 @@ int makemeadaemon(void)
 	default:	exit(0);
 	}
 
-	umask(S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+	umask(022);
 
 	if (chdir("/") == -1)
 		return -1;
@@ -258,7 +258,7 @@ int dontmakemeadaemon(void)
 {
 	fprintf(stdout, "Foreground mode...<Ctrl-C> or or SIG_TERM to end it.\n");
 
-	umask(S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+	umask(022);
 
 	return 0;
 }
