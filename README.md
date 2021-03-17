@@ -1,7 +1,7 @@
 # eBPF CO.RE code example
 ### bonus 1: compatible with BCC<BR>bonus 2: userland portion in C and Python<BR>bonus 3: compatible with v4.x.y kernels
 
-My original intent was to create an eBPF code that could be oded in C and be portable among different kernels. I had a specific project in mind - [ipsetaudit](https://github.com/rafaeldtinoco/ipsetaudit), a tool capable of auditing calls to ipset - and during the development there were so many caveats - that had to be investigated in mailing lists or using the old try-n-error approach - I decided to document them here with a code example that could be used by anyone willing to create an eBPF tool from the beginning.
+My original intent was to create an eBPF code that could be coded in C and be portable among different kernels. I had a specific project in mind - [ipsetaudit](https://github.com/rafaeldtinoco/ipsetaudit), a tool capable of auditing calls to ipset - and during the development there were so many caveats - that had to be investigated in mailing lists or using the old try-n-error approach - I decided to document them here with a code example that could be used by anyone willing to create an eBPF tool from the beginning.
 
 ## eBPF libraries
 
@@ -33,23 +33,23 @@ And this example uses the 2:
 
 **Makefile**
 
-Will magically generate a binary called "mine", statically linkedin with libbpf library (downloaded as a git submodule of this tree).
+Will magically generate a binary called "mine", statically linked with libbpf library (downloaded as a git submodule of this tree).
 
 > This binary will be portable and executed in any kernel supporting BTF (there is a trick[1] to make the same binary to work in kernels not supporting BTF, like the v4.x ones). It already contains the eBPF bytecode on it.
 
 **mine.bpf.c**
 
-This is the **eBPF source code**. It will generate the bytecode that will be executed inside the kernel BPF virtual machine. When coding eBPF programs, one usually uses either the **BPFCC (old BCC)** or, the most recent, **libbpf** library. _This example is compatible with both_. If you are an eBPF tool that is only going to run in newer kernels you would stick with **libbpf** only.
+This is the **eBPF source code**. It will generate the bytecode that will be executed inside the kernel BPF virtual machine. When coding eBPF programs, one usually uses either the **BPFCC (old BCC)** or, the most recent, **libbpf** library. _This example is compatible with both_. If you are creating an eBPF tool that is only going to run in newer kernels you would stick with **libbpf** only.
 
-> In this example we have a single kernel probe declared that will be fired everytime the **ip_set_create** kernel function is called. This was chosen because in order for me to get *ipset* events I had to see what functions were called by the netlink handlers whenever a netlink message of ipset type were received by kernel.
+> In this example we have a single kernel probe declared that will be fired every time the **ip_set_create** kernel function is called. This was chosen because in order for me to get *ipset* events I had to see what functions were called by the netlink handlers whenever a netlink message of ipset type was received by kernel.
 
-> This file is part of the libbpf binary AND compiled during the python script execution (so it has to support the 2 libraries: BCC and libbpf).
+> This file is part of the libbpf based binary AND compiled during the python script execution (so it has to support the 2 libraries: BCC and libbpf).
 
 **mine.c**
 
 This is the userland portion of my eBPF tool. This is a regular user-land code made in C but, in this case, for the way we are building it, it shares code with a common - to the eBPF code - header file (mine.h). This code is responsible to get information out of BPF maps - shared among the eBPF code, running inside the kernel, and the user-land code and deal with it.
 
-> This file is part of the libbpf binary only.
+> This file is part of the libbpf based binary only.
 
 **mine.h**
 
@@ -65,11 +65,11 @@ This is the python script that uses libbpfcc under the hoods (instead of using l
 
 Contains patch(es) for some workarounds to get the libcc version of this example tool in older kernels. If you are running this in a recent kernel, there is no need to continue reading this item.
 
-[1] trick: as stated before, if you are running this in an older kernel it won't support BTF. Without getting into too many details, BTF is a very simple and small way to inform about all needed rellocations a pre-compiled eBPF bytecode would need for the current running kernel.
+ - [1] trick: as stated before, if you are running this in an older kernel it won't support BTF. Without getting into too many details, BTF is a very simple and small way to inform about all needed rellocations a pre-compiled eBPF bytecode would need for the current running kernel.
 
-If you run: ```tools/bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h``` in a recent kernel you will get a header file describing all existing types for the current kernel, for example.
+> If you run: ```tools/bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h``` in a recent kernel you will get a header file describing all existing types for the current kernel, for example.
 
-> I have made some tricks in this example to make sure the libbpf binary would also be portable to a 4.x kernel. So, by using the trick described here, you will be able to compile a single binary and run it in a v4.15 kernel and a v5.8 kernel, without recompiling it.
+> I have made some tricks in this example to make sure the libbpf based binary would also be portable to a 4.x kernel. So, by using the trick described here, you will be able to compile a single binary and run it in a v4.15 kernel and a v5.8 kernel, without recompiling it.
 >
 > If you are curious, check mine.c and search for **attach_kprobe_legacy()** function.
 
