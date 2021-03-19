@@ -107,6 +107,26 @@ probe_enter(enum ev_type etype, void *ctx, struct nlmsghdr *nlh, struct nlattr *
 }
 
 #ifdef NOTBCC
+static __always_inline int
+probe_return(enum ev_type etype, void *ctx, int ret)
+{
+	// example only
+
+	u64 id1 = bpf_get_current_pid_tgid();
+	u32 tgid = id1 >> 32, pid = id1;
+
+	switch (etype) {
+	case EXCHANGE_CREATE:
+		return 0;
+	default:
+		break;
+	}
+
+	return 1;
+}
+#endif
+
+#ifdef NOTBCC
 SEC("kprobe/ip_set_create")
 int BPF_KPROBE(ip_set_create, struct net *net, struct sock *ctnl, struct sk_buff *skb, struct nlmsghdr *nlh, struct nlattr *attr[])
 #else
@@ -115,5 +135,15 @@ int kprobe__ip_set_create(struct pt_regs *ctx, struct net *net, struct sock *ctn
 {
 	return probe_enter(EXCHANGE_CREATE, ctx, nlh, attr);
 }
+
+#ifdef NOTBCC
+SEC("kretprobe/ip_set_create")
+int BPF_KRETPROBE(ip_set_create_ret, int ret)
+{
+	return probe_return(EXCHANGE_CREATE, ctx, ret);
+}
+#endif
+
+
 
 char LICENSE[] SEC("license") = "GPL";

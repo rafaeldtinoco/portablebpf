@@ -37,112 +37,6 @@ static volatile bool exiting;
 #define PERF_BUFFER_PAGES	16
 #define PERF_POLL_TIMEOUT_MS	100
 
-// LEGACY KPROBE ATTACH (COULD BE PART OF LIBBPF BUT IT IS NOT)
-// (thanks to Andrii Nakryiko's idea)
-
-int
-poke_kprobe_events(bool add, const char* name, bool ret)
-{
-	char buf[256];
-	int fd, err;
-
-	fd = open("/sys/kernel/debug/tracing/kprobe_events", O_WRONLY | O_APPEND, 0);
-	if (fd < 0) {
-		err = -errno;
-		fprintf(stderr, "failed to open kprobe_events file: %d\n", err);
-		return err;
-	}
-
-	if (add)
-		snprintf(buf, sizeof(buf), "%c:kprobes/%s %s", ret ? 'r' : 'p', name, name);
-	else
-		snprintf(buf, sizeof(buf), "-:kprobes/%s", name);
-
-	err = write(fd, buf, strlen(buf));
-	if (err < 0) {
-		err = -errno;
-		fprintf(stderr, "failed to %s kprobe '%s': %d\n", add ? "add" : "remove", buf, err);
-	}
-	close(fd);
-
-	return err >= 0 ? 0 : err;
-}
-
-int
-add_kprobe_event(const char* func_name, bool is_kretprobe)
-{
-	return poke_kprobe_events(true /*add*/, func_name, is_kretprobe);
-}
-
-int
-remove_kprobe_event(const char* func_name, bool is_kretprobe)
-{
-	return poke_kprobe_events(false /*remove*/, func_name, is_kretprobe);
-}
-
-struct bpf_link *
-attach_kprobe_legacy(struct bpf_program* prog, const char* func_name, bool is_kretprobe)
-{
-	char fname[256];
-	struct perf_event_attr attr;
-	struct bpf_link* link;
-	int fd = -1, err, id;
-	FILE* f = NULL;
-
-	err = add_kprobe_event(func_name, is_kretprobe);
-	if (err) {
-		fprintf(stderr, "failed to create kprobe event: %d\n", err);
-		return NULL;
-	}
-
-	snprintf(fname, sizeof(fname), "/sys/kernel/debug/tracing/events/kprobes/%s/id", func_name);
-	f = fopen(fname, "r");
-	if (!f) {
-		fprintf(stderr, "failed to open kprobe id file '%s': %d\n", fname, -errno);
-		goto err_out;
-	}
-
-	if (fscanf(f, "%d\n", &id) != 1) {
-		fprintf(stderr, "failed to read kprobe id from '%s': %d\n", fname, -errno);
-		goto err_out;
-	}
-
-	fclose(f);
-	f = NULL;
-
-	memset(&attr, 0, sizeof(attr));
-	attr.size = sizeof(attr);
-	attr.config = id;
-	attr.type = PERF_TYPE_TRACEPOINT;
-	attr.sample_period = 1;
-	attr.wakeup_events = 1;
-
-	fd = syscall(__NR_perf_event_open, &attr, -1, 0, -1, PERF_FLAG_FD_CLOEXEC);
-	if (fd < 0) {
-		fprintf(stderr, "failed to create perf event for kprobe ID %d: %d\n", id, -errno);
-		goto err_out;
-	}
-
-	link = bpf_program__attach_perf_event(prog, fd);
-	err = libbpf_get_error(link);
-	if (err) {
-		fprintf(stderr, "failed to attach to perf event FD %d: %d\n", fd, err);
-		goto err_out;
-	}
-
-	return link;
-
-	err_out:
-
-	if (f)
-		fclose(f);
-	if (fd >= 0)
-		close(fd);
-
-	remove_kprobe_event(func_name, is_kretprobe);
-	return NULL;
-}
-
 // GENERAL
 
 char *get_currtime(void)
@@ -337,12 +231,17 @@ void handle_lost_events(void *ctx, int cpu, __u64 lost_cnt)
 	fprintf(stderr, "lost %llu events on CPU #%d\n", lost_cnt, cpu);
 }
 
+void trap(int what)
+{
+	exiting = 1;
+}
+
 // EBPF USERLAND PORTION
 
 int main(int argc, char **argv)
 {
 	int opt, err = 0, pid_max;
-	struct mine_bpf *obj;
+	struct mine_bpf *mine;
 	struct perf_buffer_opts pb_opts;
 	struct perf_buffer *pb = NULL;
 
@@ -361,9 +260,11 @@ int main(int argc, char **argv)
 	}
 
 	daemonize ? err = makemeadaemon() : dontmakemeadaemon();
-
 	if (err == -1)
 		EXITERR("failed to become a deamon");
+
+	signal(SIGINT, trap);
+	signal(SIGTERM, trap);
 
 	if (daemonize)
 		initlog();
@@ -373,25 +274,25 @@ int main(int argc, char **argv)
 	if ((err = bump_memlock_rlimit()))
 		EXITERR("failed to increase rlimit: %d", err);
 
-	if (!(obj = mine_bpf__open()))
+	if (!(mine = mine_bpf__open()))
 		EXITERR("failed to open BPF object");
 
 	if ((pid_max = get_pid_max()) < 0)
 		EXITERR("failed to get pid_max");
 
-	if ((err = mine_bpf__load(obj)))
+	// kern_version = 266002;
+	//mine->obj->kern_version = (u32) 26602;
+
+	if ((err = mine_bpf__load(mine)))
 		CLEANERR("failed to load BPF object: %d\n", err);
 
-	obj->links.ip_set_create = attach_kprobe_legacy(obj->progs.ip_set_create, "ip_set_create", false);
-
-	if (!obj->links.ip_set_create)
-		if ((err = mine_bpf__attach(obj)))
-			CLEANERR("failed to attach\n");
+	if ((err = mine_bpf__attach(mine)))
+		CLEANERR("failed to attach\n");
 
 	pb_opts.sample_cb = handle_event;
 	pb_opts.lost_cb = handle_lost_events;
 
-	pb = perf_buffer__new(bpf_map__fd(obj->maps.events), PERF_BUFFER_PAGES, &pb_opts);
+	pb = perf_buffer__new(bpf_map__fd(mine->maps.events), PERF_BUFFER_PAGES, &pb_opts);
 
 	err = libbpf_get_error(pb);
 	if (err) {
@@ -405,6 +306,9 @@ int main(int argc, char **argv)
 	while (1) {
 		if ((err = perf_buffer__poll(pb, PERF_POLL_TIMEOUT_MS)) < 0)
 			break;
+
+		if (exiting)
+			break;
 	}
 
 cleanup:
@@ -412,7 +316,7 @@ cleanup:
 		endlog();
 
 	perf_buffer__free(pb);
-	mine_bpf__destroy(obj);
+	mine_bpf__destroy(mine);
 
 	return err != 0;
 }
