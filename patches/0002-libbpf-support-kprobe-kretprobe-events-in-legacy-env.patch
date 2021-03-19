@@ -1,7 +1,8 @@
-From a05767981af07c0738f4d203bf671a70d9524ec7 Mon Sep 17 00:00:00 2001
+From 54653bb36163197c07adccb34c1c983f69dbd8d4 Mon Sep 17 00:00:00 2001
 From: Rafael David Tinoco <rafaeldtinoco@ubuntu.com>
 Date: Thu, 18 Mar 2021 06:02:37 +0000
-Subject: [RFC][PATCH] libbpf: support kprobe/kretprobe events in legacy environments
+Subject: [PATCH 2/2] libbpf: support kprobe/kretprobe events in legacy
+ environments
 
  * Request for comments version (still needs polishing).
  * Based on Andrii Nakryiko's suggestion.
@@ -13,10 +14,10 @@ Signed-off-by: Rafael David Tinoco <rafaeldtinoco@ubuntu.com>
  1 file changed, 90 insertions(+), 10 deletions(-)
 
 diff --git a/src/libbpf.c b/src/libbpf.c
-index 2f351d3..4dc09d3 100644
+index d988653..98e78b2 100644
 --- a/src/libbpf.c
 +++ b/src/libbpf.c
-@@ -9677,8 +9677,14 @@ static int parse_uint_from_file(const char *file, const char *fmt)
+@@ -9683,8 +9683,14 @@ static int parse_uint_from_file(const char *file, const char *fmt)
  
  static int determine_kprobe_perf_type(void)
  {
@@ -31,7 +32,7 @@ index 2f351d3..4dc09d3 100644
  	return parse_uint_from_file(file, "%d\n");
  }
  
-@@ -9703,25 +9709,87 @@ static int determine_uprobe_retprobe_bit(void)
+@@ -9709,25 +9715,87 @@ static int determine_uprobe_retprobe_bit(void)
  	return parse_uint_from_file(file, "config:%d\n");
  }
  
@@ -48,7 +49,7 @@ index 2f351d3..4dc09d3 100644
 +static int poke_kprobe_events(bool add, const char *name, bool kretprobe)
 +{
 +	int fd, ret = 0;
-+	char given[256], buf[256];
++	char given[128], buf[256];
 +	const char *file = "/sys/kernel/debug/tracing/kprobe_events";
 +
 +	if (kretprobe && add)
@@ -125,7 +126,7 @@ index 2f351d3..4dc09d3 100644
  		if (bit < 0) {
  			pr_warn("failed to determine %s retprobe bit: %s\n",
  				uprobe ? "uprobe" : "kprobe",
-@@ -9731,10 +9799,14 @@ static int perf_event_open_probe(bool uprobe, bool retprobe, const char *name,
+@@ -9737,10 +9805,14 @@ static int perf_event_open_probe(bool uprobe, bool retprobe, const char *name,
  		attr.config |= 1 << bit;
  	}
  	attr.size = sizeof(attr);
@@ -144,7 +145,7 @@ index 2f351d3..4dc09d3 100644
  	/* pid filter is meaningful only for uprobes */
  	pfd = syscall(__NR_perf_event_open, &attr,
  		      pid < 0 ? -1 : pid /* pid */,
-@@ -9750,6 +9822,11 @@ static int perf_event_open_probe(bool uprobe, bool retprobe, const char *name,
+@@ -9756,6 +9828,11 @@ static int perf_event_open_probe(bool uprobe, bool retprobe, const char *name,
  	return pfd;
  }
  
@@ -156,7 +157,7 @@ index 2f351d3..4dc09d3 100644
  struct bpf_link *bpf_program__attach_kprobe(struct bpf_program *prog,
  					    bool retprobe,
  					    const char *func_name)
-@@ -9766,6 +9843,9 @@ struct bpf_link *bpf_program__attach_kprobe(struct bpf_program *prog,
+@@ -9772,6 +9849,9 @@ struct bpf_link *bpf_program__attach_kprobe(struct bpf_program *prog,
  			libbpf_strerror_r(pfd, errmsg, sizeof(errmsg)));
  		return ERR_PTR(pfd);
  	}
@@ -167,5 +168,5 @@ index 2f351d3..4dc09d3 100644
  	if (IS_ERR(link)) {
  		close(pfd);
 -- 
-2.17.1
+2.27.0
 

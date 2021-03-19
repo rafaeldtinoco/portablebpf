@@ -1,7 +1,7 @@
-From e5aa03c4f445b21e5e7f2f13a5e671f29e96a8c9 Mon Sep 17 00:00:00 2001
+From f339c501e7b95eea24c38daebcd442098ca034ba Mon Sep 17 00:00:00 2001
 From: Rafael David Tinoco <rafaeldtinoco@ubuntu.com>
 Date: Thu, 18 Mar 2021 18:52:33 +0000
-Subject: [PATCH] libbpf: allow bpf object kern_version to be overridden
+Subject: [PATCH 1/2] libbpf: allow bpf object kern_version to be overridden
 
 Unfortunately some distros don't have their accurate kernel version
 defined correctly in version.h due to long term support decisions. This
@@ -34,7 +34,7 @@ Signed-off-by: Rafael David Tinoco <rafaeldtinoco@ubuntu.com>
  1 file changed, 9 insertions(+), 3 deletions(-)
 
 diff --git a/src/libbpf.c b/src/libbpf.c
-index 4dc09d3..cbc6e61 100644
+index 2f351d3..d988653 100644
 --- a/src/libbpf.c
 +++ b/src/libbpf.c
 @@ -708,13 +708,19 @@ bpf_object__add_programs(struct bpf_object *obj, Elf_Data *sec_data,
@@ -61,5 +61,5 @@ index 4dc09d3..cbc6e61 100644
  
  static const struct btf_member *
 -- 
-2.17.1
+2.27.0
 
