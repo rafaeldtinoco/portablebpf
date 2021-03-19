@@ -89,7 +89,7 @@ char *get_username(uint32_t uid)
 
 	memset(username, 0, 100);
 	if (p && p->pw_name)
-		strncpy(username, p->pw_name, 100);
+		strncpy(username, p->pw_name, 99);
 
 	return username;
 }
