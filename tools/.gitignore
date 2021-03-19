@@ -2,3 +2,4 @@
 !.gitignore
 !bpftool
 !test-ipset.sh
+!kern-version.c
