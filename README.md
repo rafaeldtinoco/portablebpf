@@ -274,7 +274,11 @@ $ ls -lah /boot/vmlinux-$(uname -r)
 -rw-r--r-- 1 root root 3.0M Mar 19 01:30 /boot/vmlinux-4.15.0-139-generic
 ```
 
-Now we currently have a 3MB file that will serve for that purpose. Good enough. We can get rid of the kernel debug symbols. Together with this ELF (/boot/vmlinux-$(uname -r)) we will be able to run the same compiled binary (in Ubuntu Groovy) in this Ubuntu Bionic.
+Now we currently have a 3MB file that will serve for that purpose. Good enough. We can get rid of the kernel debug symbols. 
+
+> This ELF file (/boot/vmlinux-4.15.0-139-generic) containing BTF data will, likely, be good enough for other kernel versions close to this one (depending on the changes to the data types). So, in *theory* you could just rename this file to 4.15.0-{140,141,142}-generic and, as long as the data types used by the kernel functions you are probing don't change, you would be good.
+
+Together with this ELF (/boot/vmlinux-$(uname -r)) we will be able to run the same compiled binary (in Ubuntu Groovy) in this Ubuntu Bionic.
 
 ```
 $ apt-get remove --purge linux-image-4.15.0-139-generic-dbgsym
