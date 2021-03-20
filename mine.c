@@ -240,6 +240,7 @@ void trap(int what)
 
 int main(int argc, char **argv)
 {
+	char *kern_version = getenv("LIBBPF_KERN_VERSION");
 	int opt, err = 0, pid_max;
 	struct mine_bpf *mine;
 	struct perf_buffer_opts pb_opts;
@@ -280,8 +281,9 @@ int main(int argc, char **argv)
 	if ((pid_max = get_pid_max()) < 0)
 		EXITERR("failed to get pid_max");
 
-	// kern_version = 266002;
-	//mine->obj->kern_version = (u32) 26602;
+	if (kern_version)
+		if ((bpf_object__set_kversion(mine->obj, kern_version)) < 0)
+			EXITERR("failed to set kern_version to BPF obj");
 
 	if ((err = mine_bpf__load(mine)))
 		CLEANERR("failed to load BPF object: %d\n", err);
