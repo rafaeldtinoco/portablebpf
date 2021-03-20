@@ -3,6 +3,10 @@
 
 #ifdef NOTBCC
 
+#ifndef KERNEL_VERSION
+#define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))
+#endif
+
 // LIBBPF ONLY
 
 #define HERE fprintf(stderr, "line %d, file %s, function %s\n", __LINE__, __FILE__, __func__)
