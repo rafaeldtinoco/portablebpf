@@ -1,16 +1,17 @@
-From c9e37f8f5c33f82ad257ac411b5c2ec671c14418 Mon Sep 17 00:00:00 2001
+From 1728172ae9bf324859e2d9b8081669d2669ed34d Mon Sep 17 00:00:00 2001
 From: Rafael David Tinoco <rafaeldtinoco@ubuntu.com>
-Date: Mon, 22 Mar 2021 18:00:49 +0000
-Subject: [PATCH] [PATCH v2 bpf-next][RFC] libbpf: introduce legacy kprobe events support
+Date: Tue, 23 Mar 2021 01:14:31 -0300
+Subject: [PATCH] libbpf: introduce legacy kprobe events support
 
-- This is a RFC (v2).
-- Please check my reply with inline comments.
+[PATCH v2 bpf-next][RFC] libbpf: introduce legacy kprobe events support
+
+* This is a RFC version.
 ---
  src/libbpf.c | 362 ++++++++++++++++++++++++++++++++++++++++++++++++++-
  1 file changed, 357 insertions(+), 5 deletions(-)
 
 diff --git a/src/libbpf.c b/src/libbpf.c
-index 3b1c79f..e9c6025 100644
+index 9831e61..50f37ac 100644
 --- a/src/libbpf.c
 +++ b/src/libbpf.c
 @@ -9465,6 +9465,10 @@ struct bpf_link {
