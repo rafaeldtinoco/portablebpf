@@ -1,2 +1,6 @@
 mine
 .output*
+.cproject
+.project
+.pydevproject
+.settings*
