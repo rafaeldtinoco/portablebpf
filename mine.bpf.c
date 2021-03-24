@@ -1,14 +1,10 @@
-#ifdef NOTBCC
 #include <vmlinux.h>
 
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
-#endif
 
 #include "mine.h"
-
-#ifdef NOTBCC
 
 // bpf map
 
@@ -24,28 +20,19 @@ static __always_inline void *nla_data(struct nlattr *nla)
 {
 	return (char *) nla + NLA_HDRLEN;
 }
-#endif
 
 // wrappers to make BCC and LIBBPF code to coexist (read: https://tinyl.io/3hFM)
 
 static __always_inline long
 wrap_probe_read(void *dst, size_t sz, void *src)
 {
-#ifdef NOTBCC
 	return bpf_probe_read_kernel(dst, sz, src);
-#else
-	return bpf_probe_read(dst, sz, src);
-#endif
 }
 
 static __always_inline long
 wrap_probe_read_str(void *dst, size_t sz, void *src)
 {
-#ifdef NOTBCC
 	return bpf_probe_read_kernel_str(dst, sz, src);
-#else
-	return bpf_probe_read_str(dst, sz, src);
-#endif
 }
 
 // static function called by probe function
@@ -74,11 +61,8 @@ probe_enter(enum ev_type etype, void *ctx, struct nlmsghdr *nlh, struct nlattr *
 
 	// get uid from terminal session (and not from current task)
 
-#ifdef NOTBCC
 	bpf_probe_read_kernel(&data.loginuid, sizeof(unsigned int), &task->loginuid.val);
-#else
-	data.loginuid = task->loginuid.val;
-#endif
+
 	// get command name from task struct
 
 	wrap_probe_read_str(&data.comm, TASK_COMM_LEN, task->comm);
@@ -99,14 +83,9 @@ probe_enter(enum ev_type etype, void *ctx, struct nlmsghdr *nlh, struct nlattr *
 		;;
 	}
 
-#ifdef NOTBCC
 	return bpf_perf_event_output(ctx, &events, 0xffffffffULL, &data, sizeof(data));
-#else
-	return events.perf_submit(ctx, &data, sizeof(data));
-#endif
 }
 
-#ifdef NOTBCC
 static __always_inline int
 probe_return(enum ev_type etype, void *ctx, int ret)
 {
@@ -124,26 +103,17 @@ probe_return(enum ev_type etype, void *ctx, int ret)
 
 	return 1;
 }
-#endif
 
-#ifdef NOTBCC
 SEC("kprobe/ip_set_create")
 int BPF_KPROBE(ip_set_create, struct net *net, struct sock *ctnl, struct sk_buff *skb, struct nlmsghdr *nlh, struct nlattr *attr[])
-#else
-int kprobe__ip_set_create(struct pt_regs *ctx, struct net *net, struct sock *ctnl, struct sk_buff *skb, struct nlmsghdr *nlh, struct nlattr **attr)
-#endif
 {
 	return probe_enter(EXCHANGE_CREATE, ctx, nlh, attr);
 }
 
-#ifdef NOTBCC
 SEC("kretprobe/ip_set_create")
 int BPF_KRETPROBE(ip_set_create_ret, int ret)
 {
 	return probe_return(EXCHANGE_CREATE, ctx, ret);
 }
-#endif
-
-
 
 char LICENSE[] SEC("license") = "GPL";

@@ -1,8 +1,6 @@
 #ifndef MINE_H_
 #define MINE_H_
 
-#ifdef NOTBCC
-
 #ifndef KERNEL_VERSION
 #define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))
 #endif
@@ -52,19 +50,6 @@
 		break;						\
 	}							\
 }
-
-#else
-
-// BCC ONLY
-
-#include <uapi/linux/ptrace.h>
-#include <net/sock.h>
-
-BPF_PERF_OUTPUT(events);
-
-#endif
-
-// COMMON TO BCC AND LIBBPF
 
 typedef unsigned int u32;
 
