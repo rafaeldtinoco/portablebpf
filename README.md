@@ -1,5 +1,5 @@
 # eBPF CO.RE code example
-### bonus 1: compatible with BCC<BR>bonus 2: userland portion in C and Python<BR>bonus 3: compatible with v4.x.y kernels
+### bonus 1: compatible with BCC<BR>bonus 2: userland portion in C and Python ([bpfcc-supported](https://github.com/rafaeldtinoco/portablebpf/tree/bpfcc-supported))<BR>bonus 3: compatible with v4.x.y kernels
 
 My original intent was to create an eBPF code that could be coded in C and be portable among different kernels. I had a specific project in mind - [ipsetaudit](https://github.com/rafaeldtinoco/ipsetaudit), a tool capable of auditing calls to ipset - and during the development there were so many caveats - that had to be investigated in mailing lists or using the old try-n-error approach - I decided to document them here with a code example that could be used by anyone willing to create an eBPF tool from the beginning.
 
@@ -22,7 +22,9 @@ There are currently 2 main eBPF libraries:
 And this example uses the 2:
 
 1. BCC: **mine.py**: a BCC based python app that will compile the same bpf code (ipsetaudit.bpf.c) during its runtime.
- 
+    - This example has been removed from main branch to make it simpler and easier to read.
+    - I created a branch called [bpfcc-supported](https://github.com/rafaeldtinoco/portablebpf/tree/bpfcc-supported) showing this example.
+
 2. libbpf: **mine**: a pre-compiled and portable libcc based binary with bpf bytecode embedded on it. This binary will be able to run in any kernel supporting BTF.
 
     - [Diving into BPF](https://qmonnet.github.io/whirl-offload/2016/09/01/dive-into-bpf/)
@@ -35,13 +37,15 @@ And this example uses the 2:
 
 Will magically generate a binary called "mine", statically linked with libbpf library (downloaded as a git submodule of this tree).
 
+**mine**
+
 > This binary will be portable and executed in any kernel supporting BPFs and the BTF format (there is a trick[1] to make BTF available in older kernels, like the v4.x series).
+
+**mine.bpf.c**
 
 This is the **eBPF source code**. It will generate the bytecode that will be executed inside the kernel BPF virtual machine. When coding eBPF programs, one usually uses either the **BPFCC (old BCC)** or, the most recent, **libbpf** library. _This example is compatible with both_. If you are creating an eBPF tool that is only going to run in newer kernels you would stick with **libbpf** only.
 
 > In this example we have a single kernel probe declared that will be fired every time the **ip_set_create** kernel function is called. This was chosen because in order for me to get *ipset* events I had to see what functions were called by the netlink handlers whenever a netlink message of ipset type was received by kernel.
-
-> This file is part of the libbpf based binary AND compiled during the python script execution (so it has to support the 2 libraries: BCC and libbpf).
 
 **mine.c**
 
@@ -54,10 +58,6 @@ This is the userland portion of my eBPF tool. This is a regular user-land code m
 This is header file that is shared among the 2 codes: the eBPF C code, in mine.bpf.c, and the userland C code, in mine.c.
 
 > If you are using libbpf only, then this file won't have much but the structs responsible to describe the BPF maps you want to share among kerne and userland.
-
-**mine.py**
-
-This is the python script that uses libbpfcc under the hoods (instead of using libbpf). It will compile the **mine.bpf.c** file during its execution and load the result inside the kernel before the python code actually runs.
 
 **vmlinux.h**
 
@@ -142,10 +142,11 @@ Run **make** and it will compile the **mine** binary file:
 $ make -j20
 mkdir -p .output
 mkdir -p .output/libbpf
-make -C /home/rafaeldtinoco/devel/portablebpf/libbpf/src BUILD_STATIC_ONLY=1			\
-	    OBJDIR=/home/rafaeldtinoco/devel/portablebpf/.output//libbpf DESTDIR=/home/rafaeldtinoco/devel/portablebpf/.output/		\
-	    INCLUDEDIR= LIBDIR= UAPIDIR=			\
-	    install
+make -C /home/rafaeldtinoco/devel/portablebpf/libbpf/src \
+	BUILD_STATIC_ONLY=1 \
+	OBJDIR=/home/rafaeldtinoco/devel/portablebpf/.output/libbpf \
+	DESTDIR=/home/rafaeldtinoco/devel/portablebpf/.output \
+	INCLUDEDIR= LIBDIR= UAPIDIR= install
 make[1]: Entering directory '/home/rafaeldtinoco/devel/portablebpf/libbpf/src'
   MKDIR    staticobjs
   INSTALL  bpf.h libbpf.h btf.h xsk.h libbpf_util.h bpf_helpers.h bpf_helper_defs.h bpf_tracing.h bpf_endian.h bpf_core_read.h libbpf_common.h
@@ -158,20 +159,21 @@ make[1]: Entering directory '/home/rafaeldtinoco/devel/portablebpf/libbpf/src'
   CC       str_error.o
   CC       libbpf_probes.o
   CC       bpf_prog_linfo.o
-  CC       xsk.o
   CC       btf_dump.o
+  CC       xsk.o
   CC       hashmap.o
   CC       ringbuf.o
   INSTALL  libbpf.pc
   AR       libbpf.a
   INSTALL  libbpf.a
 make[1]: Leaving directory '/home/rafaeldtinoco/devel/portablebpf/libbpf/src'
-clang -g -O2 -target bpf -D__TARGET_ARCH_x86 -DNOTBCC	\
-	     -I.output -I. -c mine.bpf.c -o .output/mine.bpf.o &&		\
+clang -g -O2 -target bpf -D__TARGET_ARCH_x86 \
+	     -I.output -I. -c mine.bpf.c -o .output/mine.bpf.o && \
 llvm-strip -g .output/mine.bpf.o
-./tools/bpftool gen skeleton .output/mine.bpf.o > .output/mine.skel.h
-cc -g -O2 -Wall -I.output -I. -DNOTBCC -c mine.c -o .output/mine.o
-cc -g -O2 -Wall -DNOTBCC  .output/mine.o /home/rafaeldtinoco/devel/portablebpf/.output/libbpf.a -lelf -lz -o mine
+/home/rafaeldtinoco/devel/portablebpf/tools/bpftool gen skeleton .output/mine.bpf.o > .output/mine.skel.h
+clang -g -O2 -Wall -I.output -I. -c mine.c -o .output/mine.o
+clang -g -O2 -Wall .output/mine.o /home/rafaeldtinoco/devel/portablebpf/.output/libbpf.a -lelf -lz -o mine
+rm .output/mine.bpf.o
 ```
 
 After the compilation, I can execute it in **ANY other host* - running a recent enough kernel that supports BTF - without recompiling it:
@@ -331,27 +333,3 @@ And voilá! We just compiled an eBPF program in an Ubuntu Groovy host, running k
 
 > The eBPF binary instrospected both kernels, looking for the same symbol (**ip_set_create**) and added a kprobe to those. This allowed the userland code to inform about what **ipset** attributes were given to kernel after kernel received **ipset netlink msgs** (like an audit tool would do).
 
-## 2. Executing the python based BCC tool
-
-As a 'bonus' I have made the BCC version of this same tool available, using the same bpf C code. You can run the python script:
-
-```
-$ sudo ./mine.py
-Tracing... Hit Ctrl-C to end.
-ipset (pid: 29166) (auid: 1000) - CREATE test123 (type: hash:ip)
-ipset (pid: 29167) (auid: 1000) - CREATE test456 (type: hash:ip)
-ipset (pid: 29168) (auid: 1000) - CREATE test789 (type: hash:ip)
-
-```
-
-> It will compile **mine.bpf.c** on demand (as BCC does)
-
-During its runtime, it will catch all ipset creations. You can test it by simply running:
-
-```
-$ sudo ipset create test123 hash:ip
-$ sudo ipset create test456 hash:ip
-$ sudo ipset create test789 hash:ip
-```
-
-It works similarly as the libbpf binary BUT the BCC project is out of the scope here to be detailed more. I find libbpf way more interesting and targetting the future of what eBPF is yet to become.
