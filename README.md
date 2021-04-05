@@ -39,7 +39,7 @@ Will magically generate a binary called "mine", statically linked with libbpf li
 
 **mine**
 
-> This binary will be portable and executed in any kernel supporting BPFs and the BTF format (there is a trick[1] to make BTF available in older kernels, like the v4.x series).
+This binary will be portable and executed in any kernel supporting BPFs and the BTF format (there is a trick[1] to make BTF available in older kernels, like the v4.x series).
 
 **mine.bpf.c**
 
