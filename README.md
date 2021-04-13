@@ -241,6 +241,14 @@ $ dpkg-query -f '${Package} ${Version}\n' -W 'dwarves'
 dwarves 1.17-1 
 ```
 
+Install llvm-10 and clang-10 (or llvm-11 and clang-11 if available) and update alternatives:
+
+```
+$ sudo update-alternatives --install /usr/bin/clang clang $(which clang-10) 1
+$ sudo update-alternatives --install /usr/bin/llvm-strip llvm-strip $(which llvm-strip-10) 1
+$ sudo update-alternatives --install /usr/bin/llvm-objcopy llvm-objcopy $(which llvm-objcopy-10) 1
+```
+
 Use pahole tool to add the .BTF ELF section to vmlinux file from the debug package:
 
 ```
@@ -252,8 +260,6 @@ Extract the .BTF section from vmlinux file into a new file to be used by libbpf.
 > Note: the newer kernels provide this at: /sys/kernel/btf/vmlinux
 > so there is no need to have an external (to kernel) file providing
 > that info
-
-Make sure you have **llvm10** installed and use its **llvm-objcopy-10** to extract the ELF section:
 
 ```
 $ sudo llvm-objcopy-10 --only-section=.BTF --set-section-flags .BTF=alloc,readonly --strip-all /usr/lib/debug/boot/vmlinux-$(uname -r) /boot/vmlinux-$(uname -r)
