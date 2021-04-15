@@ -68,6 +68,7 @@ enum ev_type {
 	EXCHANGE_TEST = 7,
 	EXCHANGE_ADD = 8,
 	EXCHANGE_DEL = 9,
+	EXCHANGE_NOTHING = 10,
 };
 
 struct data_t {

@@ -173,7 +173,10 @@ static int output(struct data_t *e)
 				e->loginuid, e->ipset_name,
 				e->ipset_type);
 		break;
-		;;
+	case EXCHANGE_NOTHING:
+		OUTPUT("(%s) %s (pid: %d) (username: %s - uid: %d) - TESTING PROBE\n",
+				currtime, e->comm, e->pid, username, e->loginuid);
+		break;
 	default:
 		break;
 		;;
