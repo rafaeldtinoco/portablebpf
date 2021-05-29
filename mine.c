@@ -166,21 +166,8 @@ static int output(struct data_t *e)
 	if ((username = get_username(e->loginuid)) == NULL)
 		username = "null";
 
-	switch (e->etype) {
-	case EXCHANGE_CREATE:
-		OUTPUT("(%s) %s (pid: %d) (username: %s - uid: %d) - CREATE %s (type: %s)\n",
-				currtime, e->comm, e->pid, username,
-				e->loginuid, e->ipset_name,
-				e->ipset_type);
-		break;
-	case EXCHANGE_NOTHING:
-		OUTPUT("(%s) %s (pid: %d) (username: %s - uid: %d) - TESTING PROBE\n",
-				currtime, e->comm, e->pid, username, e->loginuid);
-		break;
-	default:
-		break;
-		;;
-	}
+	OUTPUT("(%s) %s (pid: %d) (username: %s - uid: %d)\n",
+               currtime, e->comm, e->pid, username, e->loginuid);
 
 	if (username != NULL)
 		free(username);
