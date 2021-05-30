@@ -288,6 +288,14 @@ int main(int argc, char **argv)
 	if ((err = mine_bpf__attach(mine)))
 		CLEANERR("failed to attach\n");
 
+	if ((err = bpf_object__pin(mine->obj, "/sys/fs/bpf/")))
+		CLEANERR("failed to pin\n");
+
+	/*
+	if ((err = bpf_object__pin_programs(mine->obj, "/sys/fs/bpf/")))
+		CLEANERR("failed to pin\n");
+	 */
+
 	pb_opts.sample_cb = handle_event;
 	pb_opts.lost_cb = handle_lost_events;
 
