@@ -1,0 +1,108 @@
+#!/usr/bin/stap
+
+%{
+#include <linux/printk.h>
+#include <linux/syscalls.h>
+%}
+
+// execute: sudo stap -g ./hijack.stp"
+//
+// obs: guru not **really** needed (as this is simple example)
+//
+
+function doit:long(cmd)
+%{
+	char *name;
+	long subcmd = (long) (int) STAP_ARG_cmd;
+
+	switch (subcmd) {
+	case 0 :
+		name = "BPF_MAP_CREATE";
+		break;
+	case 1 :
+		name = "BPF_MAP_LOOKUP_ELEM";
+		break;
+	case 2 :
+		name = "BPF_MAP_UPDATE_ELEM";
+		break;
+	case 3 :
+		name = "BPF_MAP_DELETE_ELEM";
+		break;
+	case 4 :
+		name = "BPF_MAP_GET_NEXT_KEY";
+		break;
+	case 5 :
+		name = "BPF_PROG_LOAD";
+		break;
+	case 6 :
+		name = "BPF_OBJ_PIN";
+		break;
+	case 7 :
+		name = "BPF_OBJ_GET";
+		break;
+	case 8 :
+		name = "BPF_PROG_ATTACH";
+		break;
+	case 9 :
+		name = "BPF_PROG_DETACH";
+		break;
+	case 10:
+		name = "BPF_PROG_TEST_RUN";
+		break;
+	case 11:
+		name = "BPF_PROG_GET_NEXT_ID";
+		break;
+	case 12:
+		name = "BPF_MAP_GET_NEXT_ID";
+		break;
+	case 13:
+		name = "BPF_PROG_GET_FD_BY_ID";
+		break;
+	case 14:
+		name = "BPF_MAP_GET_FD_BY_ID";
+		break;
+	case 15:
+		name = "BPF_OBJ_GET_INFO_BY_FD";
+		break;
+	case 16:
+		name = "BPF_PROG_QUERY";
+		break;
+	case 17:
+		name = "BPF_RAW_TRACEPOINT_OPEN";
+		break;
+	case 18:
+		name = "BPF_BTF_LOAD";
+		break;
+	case 19:
+		name = "BPF_BTF_GET_FD_BY_ID";
+		break;
+	case 20:
+		name = "BPF_TASK_FD_QUERY";
+		break;
+	default:
+		break;
+	}
+
+	STAP_PRINTF("EBPF SUB-CMD: %d (%s)\n", subcmd, name);
+
+	STAP_RETURN(0);
+%}
+
+probe kernel.function("security_bpf")
+{
+	subcmd = $cmd;
+
+	print("---- SECURITY_BPF ----\n");
+	doit(subcmd);
+	print("--\n");
+	print_backtrace()
+	print("---- END -------------\n");
+
+}
+
+probe kernel.function("security_bpf_map")
+{
+	print("---- SECURITY_BPF_MAP -\n");
+	print_backtrace()
+	print("---- END --------------\n");
+}
