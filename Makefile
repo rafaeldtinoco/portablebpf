@@ -23,7 +23,7 @@ INCLUDES := -I$(OUTPUT) -I.
 CFLAGS := -g -O2 -Wall
 LDFLAGS :=
 
-PROGRAM = mine hijack
+PROGRAM = mine
 
 all: $(PROGRAM)
 
