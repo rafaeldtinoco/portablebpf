@@ -3,6 +3,7 @@
 #include <string.h>
 #include <time.h>
 #include <signal.h>
+#include <getopt.h>
 #include <unistd.h>
 #include <time.h>
 #include <pwd.h>
@@ -56,7 +57,7 @@ static int get_pid_max(void)
 	FILE *f;
 	int pid_max = 0;
 
-	if ((f = fopen("/proc/sys/kernel/pid_max", "r")) < 0)
+	if ((f = fopen("/proc/sys/kernel/pid_max", "r")) == NULL)
 		exiterr("failed to open proc_sys pid_max");
 
 	if (fscanf(f, "%d\n", &pid_max) != 1)
@@ -96,7 +97,7 @@ char *ipv4_str(struct in_addr *addr)
 	memset(temp, 0, INET_ADDRSTRLEN);
 	inet_ntop(AF_INET, addr, temp, INET_ADDRSTRLEN);
 
-	return strdup(temp);
+	return (char *) strdup(temp);
 }
 
 char *ipv6_str(struct in6_addr *addr)
@@ -106,7 +107,7 @@ char *ipv6_str(struct in6_addr *addr)
 	memset(temp, 0, INET6_ADDRSTRLEN);
 	inet_ntop(AF_INET6, addr, temp, INET6_ADDRSTRLEN);
 
-	return strdup(temp);
+	return (char *) strdup(temp);
 }
 
 static int output(struct data_t *e)
@@ -134,7 +135,7 @@ static int output(struct data_t *e)
 		break;
 	}
 
-	wrapout("(%s) %s (pid: %d) (loginuid: %d) | (%u) %s (%u) => %s (%u)",
+	wrapout("(%s) %s (pid: %u) (loginuid: %u) | (%u) %s (%u) => %s (%u)",
 			currtime, e->comm, e->pid, e->loginuid, (u8) e->proto,
 			src_str, sport, dst_str, dport);
 
