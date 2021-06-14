@@ -5,3 +5,4 @@ mine
 .pydevproject
 .settings*
 hijack
+compile_commands.json
