@@ -4,5 +4,6 @@ mine
 .project
 .pydevproject
 .settings*
+.cache*
 hijack
 compile_commands.json
