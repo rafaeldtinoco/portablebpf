@@ -1,5 +1,14 @@
+From fe8dc905df5a25305f4995da4140c8b2c1538353 Mon Sep 17 00:00:00 2001
+From: Rafael David Tinoco <rafaeldtinoco@ubuntu.com>
+Date: Wed, 16 Jun 2021 23:45:53 -0300
+Subject: [PATCH] patch
+
+---
+ src/libbpf.c | 128 ++++++++++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 126 insertions(+), 2 deletions(-)
+
 diff --git a/src/libbpf.c b/src/libbpf.c
-index 5e13c9d..740d4b2 100644
+index 5e13c9d..7f6be58 100644
 --- a/src/libbpf.c
 +++ b/src/libbpf.c
 @@ -10002,6 +10002,10 @@ struct bpf_link {
@@ -23,32 +32,8 @@ index 5e13c9d..740d4b2 100644
  	free(link);
  
  	return libbpf_err(err);
-@@ -10224,6 +10231,23 @@ static int parse_uint_from_file(const char *file, const char *fmt)
- 	return ret;
- }
- 
-+static bool determine_kprobe_legacy(void)
-+{
-+	const char *file = "/sys/bus/event_source/devices/kprobe/type";
-+
-+	return access(file, 0) == 0 ? false : true;
-+}
-+
-+static int determine_kprobe_perf_type_legacy(const char *func_name)
-+{
-+	char file[96];
-+	const char *fname = "/sys/kernel/debug/tracing/events/kprobes/%s/id";
-+
-+	snprintf(file, sizeof(file), fname, func_name);
-+
-+	return parse_uint_from_file(file, "%d\n");
-+}
-+
- static int determine_kprobe_perf_type(void)
- {
- 	const char *file = "/sys/bus/event_source/devices/kprobe/type";
-@@ -10252,6 +10276,47 @@ static int determine_uprobe_retprobe_bit(void)
- 	return parse_uint_from_file(file, "config:%d\n");
+@@ -10138,6 +10145,47 @@ int bpf_link__unpin(struct bpf_link *link)
+ 	return 0;
  }
  
 +static int poke_kprobe_events(bool add, const char *name, bool retprobe)
@@ -92,10 +77,47 @@ index 5e13c9d..740d4b2 100644
 +	return poke_kprobe_events(false, name, retprobe);
 +}
 +
- static int perf_event_open_probe(bool uprobe, bool retprobe, const char *name,
- 				 uint64_t offset, int pid)
+ static int bpf_link__detach_perf_event(struct bpf_link *link)
  {
-@@ -10299,6 +10364,43 @@ static int perf_event_open_probe(bool uprobe, bool retprobe, const char *name,
+ 	int err;
+@@ -10147,6 +10195,12 @@ static int bpf_link__detach_perf_event(struct bpf_link *link)
+ 		err = -errno;
+ 
+ 	close(link->fd);
++
++	if (link->legacy.name) {
++		remove_kprobe_event_legacy(link->legacy.name, link->legacy.retprobe);
++		free(link->legacy.name);
++	}
++
+ 	return libbpf_err(err);
+ }
+ 
+@@ -10224,6 +10278,23 @@ static int parse_uint_from_file(const char *file, const char *fmt)
+ 	return ret;
+ }
+ 
++static bool determine_kprobe_legacy(void)
++{
++	const char *file = "/sys/bus/event_source/devices/kprobe/type";
++
++	return access(file, 0) == 0 ? false : true;
++}
++
++static int determine_kprobe_perf_type_legacy(const char *func_name)
++{
++	char file[96];
++	const char *fname = "/sys/kernel/debug/tracing/events/kprobes/%s/id";
++
++	snprintf(file, sizeof(file), fname, func_name);
++
++	return parse_uint_from_file(file, "%d\n");
++}
++
+ static int determine_kprobe_perf_type(void)
+ {
+ 	const char *file = "/sys/bus/event_source/devices/kprobe/type";
+@@ -10299,6 +10370,43 @@ static int perf_event_open_probe(bool uprobe, bool retprobe, const char *name,
  	return pfd;
  }
  
@@ -139,7 +161,7 @@ index 5e13c9d..740d4b2 100644
  struct bpf_link *bpf_program__attach_kprobe(struct bpf_program *prog,
  					    bool retprobe,
  					    const char *func_name)
-@@ -10306,9 +10408,18 @@ struct bpf_link *bpf_program__attach_kprobe(struct bpf_program *prog,
+@@ -10306,9 +10414,18 @@ struct bpf_link *bpf_program__attach_kprobe(struct bpf_program *prog,
  	char errmsg[STRERR_BUFSIZE];
  	struct bpf_link *link;
  	int pfd, err;
@@ -160,7 +182,7 @@ index 5e13c9d..740d4b2 100644
  	if (pfd < 0) {
  		pr_warn("prog '%s': failed to create %s '%s' perf event: %s\n",
  			prog->name, retprobe ? "kretprobe" : "kprobe", func_name,
-@@ -10324,6 +10435,13 @@ struct bpf_link *bpf_program__attach_kprobe(struct bpf_program *prog,
+@@ -10324,6 +10441,13 @@ struct bpf_link *bpf_program__attach_kprobe(struct bpf_program *prog,
  			libbpf_strerror_r(err, errmsg, sizeof(errmsg)));
  		return libbpf_err_ptr(err);
  	}
@@ -174,36 +196,6 @@ index 5e13c9d..740d4b2 100644
  	return link;
  }
  
-@@ -11816,6 +11934,22 @@ void bpf_object__detach_skeleton(struct bpf_object_skeleton *s)
- 
- void bpf_object__destroy_skeleton(struct bpf_object_skeleton *s)
- {
-+	int i, j;
-+	struct probeleft {
-+		char *probename;
-+		bool retprobe;
-+	} probesleft[24];
-+
-+	for (i = 0, j = 0; i < s->prog_cnt; i++) {
-+		struct bpf_link **link = s->progs[i].link;
-+		if ((*link)->legacy.name) {
-+			memset(&probesleft[j], 0, sizeof(struct probeleft));
-+			probesleft[j].probename = strdup((*link)->legacy.name);
-+			probesleft[j].retprobe = (*link)->legacy.retprobe;
-+			j++;
-+		}
-+	}
-+
- 	if (s->progs)
- 		bpf_object__detach_skeleton(s);
- 	if (s->obj)
-@@ -11823,4 +11957,9 @@ void bpf_object__destroy_skeleton(struct bpf_object_skeleton *s)
- 	free(s->maps);
- 	free(s->progs);
- 	free(s);
-+
-+	for (j--; j >= 0; j--) {
-+		remove_kprobe_event_legacy(probesleft[j].probename, probesleft[j].retprobe);
-+		free(probesleft[j].probename);
-+	}
- }
+-- 
+2.27.0
+
